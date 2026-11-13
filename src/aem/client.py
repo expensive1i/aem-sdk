@@ -7,7 +7,8 @@ import httpx
 
 from ._config import mask, resolve_api_key, resolve_base_url
 from ._http import HTTPClient
-from .resources import Datasets, Exports, Models, Notebooks
+from ._upload import Uploader
+from .resources import Competitions, Datasets, Exports, Models, Notebooks
 from .types import User
 
 __all__ = ["Client"]
@@ -43,10 +44,12 @@ class Client:
         self._http = HTTPClient(
             base_url=self.base_url, api_key=self._api_key, timeout=timeout, max_retries=max_retries, transport=transport
         )
-        self.datasets = Datasets(self._http)
+        uploader = Uploader(self._http)
+        self.datasets = Datasets(self._http, uploader)
         self.models = Models(self._http)
         self.notebooks = Notebooks(self._http, self.datasets, self.models)
         self.exports = Exports(self._http)
+        self.competitions = Competitions(self._http, uploader)
 
     def whoami(self) -> User:
         """The account this API key belongs to."""

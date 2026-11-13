@@ -17,6 +17,7 @@ __all__ = [
     "BadRequestError",
     "ConfigurationError",
     "ConflictError",
+    "DuplicateFileError",
     "NotFoundError",
     "PermissionDeniedError",
     "PreviewUnavailableError",
@@ -83,6 +84,15 @@ class NotFoundError(APIError):
 
 class ConflictError(APIError):
     """409: the request clashes with the current state, e.g. a decision already made."""
+
+
+class DuplicateFileError(AEMError):
+    """You already published this exact file. Pass ``allow_duplicate=True`` to publish it again."""
+
+    def __init__(self, message: str, *, existing_id: str, existing_name: str) -> None:
+        super().__init__(message)
+        self.existing_id = existing_id
+        self.existing_name = existing_name
 
 
 class BadRequestError(APIError):

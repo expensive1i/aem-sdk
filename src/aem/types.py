@@ -9,9 +9,12 @@ from typing import Any
 __all__ = [
     "AccessRequest",
     "Column",
+    "Competition",
+    "CompetitionSubmission",
     "Dataset",
     "Execution",
     "Export",
+    "LeaderboardEntry",
     "Model",
     "Notebook",
     "Output",
@@ -313,4 +316,131 @@ class Export:
             status=d.get("status", ""),
             dataset_ids=list(d.get("datasetIds") or []),
             created_at=_time(d.get("createdAt")),
+        )
+
+
+@dataclass(frozen=True)
+class Competition:
+    """A competition: predict the answers for a test file; scored on AEM's servers."""
+
+    id: str
+    slug: str
+    title: str
+    summary: str
+    description: str
+    rules: str
+    kind: str  # featured | research | getting-started | community
+    host: str
+    metric: str  # accuracy | f1 | auc | rmse | mae | logloss
+    metric_name: str
+    higher_is_better: bool
+    id_column: str
+    target_column: str
+    public_pct: int
+    max_daily_submissions: int
+    test_file_name: str
+    test_rows: int
+    prize_usd: float
+    phase: str  # draft | upcoming | open | closed
+    participants: int
+    submissions: int
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    dataset_id: str | None = None
+    joined: bool = False  # only from competitions.get
+    is_host: bool = False
+    submissions_today: int = 0
+
+    @property
+    def is_open(self) -> bool:
+        return self.phase == "open"
+
+    @property
+    def submissions_left_today(self) -> int:
+        return max(0, self.max_daily_submissions - self.submissions_today)
+
+    @classmethod
+    def from_api(cls, d: dict[str, Any], viewer: dict[str, Any] | None = None) -> Competition:
+        v = viewer or {}
+        return cls(
+            id=d.get("id", ""),
+            slug=d.get("slug", ""),
+            title=d.get("title", ""),
+            summary=d.get("summary", ""),
+            description=d.get("description", ""),
+            rules=d.get("rules", ""),
+            kind=d.get("kind", ""),
+            host=d.get("hostName", ""),
+            metric=d.get("metric", ""),
+            metric_name=d.get("metricName", ""),
+            higher_is_better=bool(d.get("higherIsBetter")),
+            id_column=d.get("idColumn", ""),
+            target_column=d.get("targetColumn", ""),
+            public_pct=int(d.get("publicPct") or 0),
+            max_daily_submissions=int(d.get("maxDailySubmissions") or 0),
+            test_file_name=d.get("testFileName", ""),
+            test_rows=int(d.get("testRows") or 0),
+            prize_usd=float(d.get("prizeUsd") or 0),
+            phase=d.get("phase", ""),
+            participants=int(d.get("participantsCount") or 0),
+            submissions=int(d.get("submissionsCount") or 0),
+            starts_at=_time(d.get("startsAt")),
+            ends_at=_time(d.get("endsAt")),
+            dataset_id=d.get("datasetId") or None,
+            joined=bool(v.get("joined")),
+            is_host=bool(v.get("isHost")),
+            submissions_today=int(v.get("submissionsToday") or 0),
+        )
+
+
+@dataclass(frozen=True)
+class CompetitionSubmission:
+    """One predictions file and its score. `private_score` appears once the competition closes."""
+
+    id: str
+    file_name: str
+    status: str  # scored | failed
+    public_score: float | None = None
+    private_score: float | None = None
+    error: str | None = None
+    note: str | None = None
+    created_at: datetime | None = None
+
+    @property
+    def scored(self) -> bool:
+        return self.status == "scored"
+
+    @classmethod
+    def from_api(cls, d: dict[str, Any]) -> CompetitionSubmission:
+        pub, priv = d.get("publicScore"), d.get("privateScore")
+        return cls(
+            id=d.get("id", ""),
+            file_name=d.get("fileName", ""),
+            status=d.get("status", ""),
+            public_score=None if pub is None else float(pub),
+            private_score=None if priv is None else float(priv),
+            error=d.get("error") or None,
+            note=d.get("note") or None,
+            created_at=_time(d.get("createdAt")),
+        )
+
+
+@dataclass(frozen=True)
+class LeaderboardEntry:
+    rank: int
+    name: str
+    score: float
+    entries: int
+    is_you: bool
+    last_at: datetime | None = None
+
+    @classmethod
+    def from_api(cls, d: dict[str, Any]) -> LeaderboardEntry:
+        return cls(
+            rank=int(d.get("rank") or 0),
+            name=d.get("displayName", ""),
+            score=float(d.get("score") or 0),
+            entries=int(d.get("entries") or 0),
+            is_you=bool(d.get("isYou")),
+            last_at=_time(d.get("lastAt")),
         )

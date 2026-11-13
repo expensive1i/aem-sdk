@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Publish datasets from Python: `client.datasets.publish("crops.csv", name="org/name", ...)`, with a progress bar,
+  large files sent to storage in retried 8 MB blocks, and waiting until AEM has read the file.
+- Publishing the same file twice raises `aem.DuplicateFileError` (pass `allow_duplicate=True` to do it anyway).
+- Competitions: `client.competitions.list/get/join/download_test/submit/submissions/leaderboard`.
+  Predictions are scored straight away on AEM's servers.
+
 ## 0.1.0
 
 - `aem.Client` signs in with an AEM API key (argument, `AEM_API_KEY` or `~/.aem/credentials`).

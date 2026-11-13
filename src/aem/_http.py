@@ -5,7 +5,9 @@ from __future__ import annotations
 import platform
 import random
 import time
-from typing import Any
+from collections.abc import Callable
+from pathlib import Path
+from typing import IO, Any, BinaryIO, cast
 
 import httpx
 
@@ -46,6 +48,29 @@ class HTTPClient:
         if not response.content:
             return {}
         return response.json()
+
+    def upload_file(self, path: str, file: Path, size: int, report: Callable[[int, int], None] | None = None) -> Any:
+        """Stream a file to the API as multipart form data (used when AEM has no Azure storage)."""
+        sent = [0]
+
+        def on_read(n: int) -> None:
+            sent[0] += n
+            if report:
+                report(min(sent[0], size), size)
+
+        try:
+            with open(file, "rb") as f:
+                response = self._client.post(
+                    path,
+                    # httpx only calls read() on it, so it stands in for a file.
+                    files={"file": (file.name, cast("IO[bytes]", _ProgressReader(f, on_read)), "application/octet-stream")},
+                    timeout=httpx.Timeout(60.0, write=None, read=600.0),
+                )
+        except httpx.TransportError as exc:
+            raise APIConnectionError(f"Upload interrupted: {exc}") from exc
+        if response.status_code >= 400:
+            raise error_from_response(response.status_code, _json_or_none(response))
+        return response.json() if response.content else {}
 
     def stream_to_file(self, path: str, destination: Any) -> httpx.Headers:
         """Download a file response into an open binary file. Returns the response headers."""
@@ -97,6 +122,18 @@ def _retryable(response: httpx.Response) -> bool:
         return False
     body = _json_or_none(response)
     return not (isinstance(body, dict) and body.get("code") == "sandbox_unavailable")
+
+
+class _ProgressReader:
+    """A file wrapper that reports each read, for upload progress."""
+
+    def __init__(self, f: BinaryIO, on_read: Callable[[int], None]) -> None:
+        self._f, self._on_read = f, on_read
+
+    def read(self, n: int = -1) -> bytes:
+        chunk = self._f.read(n)
+        self._on_read(len(chunk))
+        return chunk
 
 
 def _json_or_none(response: httpx.Response) -> Any:
